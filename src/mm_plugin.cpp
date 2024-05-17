@@ -84,6 +84,9 @@ CounterStrikeSharpMMPlugin gPlugin;
 ConVar sample_cvar("sample_cvar", "42", 0);
 #endif
 
+static uint64 g_iFlagsToRemove = (FCVAR_HIDDEN | FCVAR_DEVELOPMENTONLY | FCVAR_MISSING0 | FCVAR_MISSING1 | FCVAR_MISSING2 | FCVAR_MISSING3);
+static constexpr const char* pUnCheatCvars[] = { "bot_stop", "bot_freeze", "bot_zombie" };
+
 PLUGIN_EXPOSE(CounterStrikeSharpMMPlugin, gPlugin);
 bool CounterStrikeSharpMMPlugin::Load(PluginId id, ISmmAPI* ismm, char* error, size_t maxlen,
                                       bool late)
@@ -162,6 +165,34 @@ bool CounterStrikeSharpMMPlugin::Load(PluginId id, ISmmAPI* ismm, char* error, s
     // Used by Metamod Console Commands
     g_pCVar = globals::cvars;
     ConVar_Register(FCVAR_RELEASE | FCVAR_CLIENT_CAN_EXECUTE | FCVAR_GAMEDLL);
+
+    int iUnhiddenConVars = 0;
+
+    ConVar* pCvar = nullptr;
+    ConVarHandle hCvarHandle;
+    hCvarHandle.Set(0);
+
+    // Can't use FindFirst/Next here as it would skip cvars with certain flags, so just loop through the handles
+    do
+    {
+        pCvar = g_pCVar->GetConVar(hCvarHandle);
+
+        hCvarHandle.Set(hCvarHandle.Get() + 1);
+
+        if (!pCvar) continue;
+
+        for (int i = 0; i < sizeof(pUnCheatCvars) / sizeof(*pUnCheatCvars); i++)
+        {
+            if (!V_strcmp(pCvar->m_pszName, pUnCheatCvars[i])) pCvar->flags &= ~FCVAR_CHEAT;
+        }
+
+        if (!(pCvar->flags & g_iFlagsToRemove)) continue;
+
+        pCvar->flags &= ~g_iFlagsToRemove;
+        iUnhiddenConVars++;
+    } while (pCvar);
+
+    CSSHARP_CORE_INFO("Removed hidden flags from {} convars\n", iUnhiddenConVars);
 
     return true;
 }
